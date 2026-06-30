@@ -9,6 +9,7 @@
     "start": "sanity start",
     "build": "sanity build",
     "deploy": "sanity deploy",
+    "undeploy": "node scripts/undeploy-studio.mjs",
     "deploy-graphql": "sanity graphql deploy"
   },
   "keywords": [
