@@ -2,12 +2,13 @@ import {defineCliConfig} from 'sanity/cli'
 
 export default defineCliConfig({
   api: {
-    projectId: 'j7d4pgce',
-    dataset: 'production'
+    projectId: process.env.SANITY_STUDIO_PROJECT_ID,
+    dataset: process.env.SANITY_STUDIO_DATASET || 'production'
   },
-  // Use SANITY_STUDIO_HOSTNAME env var for branch-based deployments in CI/CD
-  // Falls back to undefined for local development (will prompt for hostname)
-  studioHost: process.env.SANITY_STUDIO_HOSTNAME,
+  // NOTE: `studioHost` is deprecated and intentionally omitted here.
+  // Branch-based deployments instead pass the hostname per-invocation via
+  // `sanity deploy --url <hostname>` (see .github/workflows/studio-deploy.yml
+  // and scripts/undeploy-studio.mjs for the matching cleanup step).
   deployment: {
     /**
      * Enable auto-updates for studios.

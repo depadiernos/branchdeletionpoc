@@ -33,7 +33,7 @@ jobs:
         run: |
           # Get the branch name from the ref
           BRANCH_NAME="${GITHUB_REF#refs/heads/}"
-          
+
           # Sanitize branch name for hostname:
           # - Convert to lowercase
           # - Replace invalid characters with hyphens
@@ -47,20 +47,23 @@ jobs:
             sed 's/^-//' | \
             sed 's/-$//' | \
             cut -c1-50)
-          
+
           # Add a prefix to ensure it starts with a letter and avoid conflicts
           STUDIO_HOSTNAME="branchdeletionpoc-${HOSTNAME}"
-          
+
           echo "hostname=${STUDIO_HOSTNAME}" >> $GITHUB_OUTPUT
           echo "📦 Will deploy to: ${STUDIO_HOSTNAME}.sanity.studio"
 
       - name: Build and Deploy Studio
         env:
           SANITY_AUTH_TOKEN: ${{ secrets.SANITY_AUTH_TOKEN }}
-          SANITY_STUDIO_HOSTNAME: ${{ steps.hostname.outputs.hostname }}
+          SANITY_STUDIO_PROJECT_ID: ${{ vars.SANITY_STUDIO_PROJECT_ID }}
         run: |
-          echo "🚀 Deploying studio to ${SANITY_STUDIO_HOSTNAME}.sanity.studio"
-          npx sanity deploy --source-maps false -y
+          echo "🚀 Deploying studio to ${{ steps.hostname.outputs.hostname }}.sanity.studio"
+          # `--url` replaces the deprecated `studioHost` CLI config property —
+          # it lets us target a different hostname on every invocation without
+          # persisting it to sanity.cli.ts.
+          npx sanity deploy --url "${{ steps.hostname.outputs.hostname }}" -y
 
       - name: Deployment Summary
         run: |
@@ -83,20 +86,12 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
       - name: Generate hostname from deleted branch
         id: hostname
         run: |
           # Get the deleted branch name from the event
           BRANCH_NAME="${{ github.event.ref }}"
-          
+
           # Apply same sanitization as deploy
           HOSTNAME=$(echo "$BRANCH_NAME" | \
             tr '[:upper:]' '[:lower:]' | \
@@ -105,20 +100,24 @@ jobs:
             sed 's/^-//' | \
             sed 's/-$//' | \
             cut -c1-50)
-          
+
           STUDIO_HOSTNAME="branchdeletionpoc-${HOSTNAME}"
-          
+
           echo "hostname=${STUDIO_HOSTNAME}" >> $GITHUB_OUTPUT
           echo "🗑️ Will undeploy: ${STUDIO_HOSTNAME}.sanity.studio"
 
       - name: Undeploy Studio
         env:
           SANITY_AUTH_TOKEN: ${{ secrets.SANITY_AUTH_TOKEN }}
-          SANITY_STUDIO_HOSTNAME: ${{ steps.hostname.outputs.hostname }}
+          SANITY_STUDIO_PROJECT_ID: ${{ vars.SANITY_STUDIO_PROJECT_ID }}
         run: |
-          echo "🗑️ Undeploying studio: ${SANITY_STUDIO_HOSTNAME}"
-          # Use -y to auto-confirm the undeploy prompt
-          npx sanity undeploy -y || echo "⚠️ Studio may not exist or already undeployed"
+          # `sanity undeploy` has no flag to target a hostname directly — it
+          # only reads `studioHost`/`deployment.appId` from sanity.cli.ts. Since
+          # we no longer keep a studioHost in config, we call the same
+          # "user-applications" API the CLI uses internally, looked up by
+          # hostname instead. See scripts/undeploy-studio.mjs.
+          node scripts/undeploy-studio.mjs "${{ steps.hostname.outputs.hostname }}" \
+            || echo "⚠️ Studio may not exist or already undeployed"
 
       - name: Cleanup Summary
         run: |
